@@ -1,4 +1,8 @@
 import OpenAI from 'openai';
+import { Buffer } from 'buffer';
+
+// Initialize OpenAI with global Buffer
+(window as any).Buffer = Buffer;
 
 const openai = new OpenAI({
   apiKey: import.meta.env.VITE_OPENAI_API_KEY,
@@ -13,6 +17,8 @@ export interface IntegrationPlan {
     content: string;
     additions: number;
     deletions: number;
+    originalPath?: string;
+    changes?: string[];
   }>;
 }
 
@@ -126,9 +132,8 @@ export async function generateIntegrationPlan(
 
   // Analyze dependencies
   const dependencyAnalysis = prototypeDependencies.map(dep => {
-    const basePkg = dep.split('/')[0]; // Handle scoped packages
+    const basePkg = dep.split('/')[0];
     const alternatives = Object.keys(existingDependencies).filter(existing => {
-      // Common alternative packages
       const alternatives: Record<string, string[]> = {
         'axios': ['fetch', 'node-fetch', 'got', 'ky', 'superagent'],
         'moment': ['date-fns', 'dayjs', 'luxon'],
@@ -170,83 +175,68 @@ Dependency Analysis:
 ${JSON.stringify(dependencyAnalysis, null, 2)}
 
 Task:
-Create a detailed, step-by-step integration plan that explains the reasoning behind each decision. For each step:
+Create a concise integration plan that focuses on:
 
-1. Directory Structure:
-   - Analyze where each prototype file should be placed
-   - Explain why that location is optimal
-   - Consider creating new directories if needed
-   - Justify any new directory creation
-   - Explain how it fits with existing patterns
+1. File Organization:
+   - Target location for each file
+   - New directories needed
+   - Naming conventions to follow
 
-2. Code Adaptation:
-   - Identify framework-specific code that needs translation
-   - Explain the translation approach
-   - List specific changes needed
-   - Provide reasoning for each change
+2. Required Modifications:
+   - Framework adaptations needed
+   - Code style adjustments
+   - Dependency changes
 
-3. Dependency Management:
-   - Review each external dependency
-   - Identify opportunities to use existing packages
-   - Explain why each package decision was made
-   - Consider bundle size and maintenance impact
+3. Integration Steps:
+   - Clear sequence of changes
+   - Testing approach
+   - Potential risks
 
-4. Integration Steps:
-   - Provide a clear sequence of implementation steps
-   - Explain dependencies between steps
-   - Identify potential risks
-   - Suggest testing approaches
+Keep the plan brief but informative. Include specific file paths and key changes needed.
 
-5. Code Style and Patterns:
-   - Analyze existing code style
-   - Identify pattern mismatches
-   - Explain required adjustments
-   - Justify style decisions
+For each file, provide:
+1. Final path
+2. Required changes
+3. Testing notes
 
-For each file in the plan, include:
-1. Final file path with justification
-2. Complete file content after changes
-3. Detailed explanation of changes
-4. Impact analysis
-5. Testing recommendations
+Format the plan as a clear markdown document that will be included in the PR.
 
-Consider:
-- Existing directory patterns and naming conventions
-- Similar component/feature locations
-- Project organization (e.g., feature-based vs. type-based)
-- Dependency proximity (related files should be close)
-- Scalability of the chosen structure
-- Potential conflicts or breaking changes
-- Performance implications
-- Testing requirements
-- Maintenance impact
-
-Prototype Files Content:
+Prototype Files:
 ${prototypeFiles.map(f => `${f.path}:\n${f.content}`).join('\n')}`;
 
   try {
-    const response = await openai.chat.completions.create({
-      model: 'o3-mini',
+    const completion = await openai.chat.completions.create({
+      model: 'gpt-4o',
+      temperature: 0.7,
       messages: [
         {
           role: 'system',
-          content: 'You are an expert software developer specializing in code integration and migration. Respond with a JSON object containing "title", "description", and "files" array with "path" and "content" for each file. The description should include a clear, step-by-step integration plan with reasoning for each decision.',
+          content: 'You are an expert software developer specializing in code integration and migration. Respond with a JSON object containing "title", "description", and "files" array. Each file should include "path", "content", "originalPath" (if different from path), and "changes" (array of specific modifications needed).',
         },
         {
           role: 'user',
           content: prompt,
         },
       ],
-      response_format: { type: 'json_object' },
+      response_format: { type: 'json_object' }
     });
 
-    const plan = JSON.parse(response.choices[0].message.content) as IntegrationPlan;
+    const plan = JSON.parse(completion.choices[0].message.content) as IntegrationPlan;
     
     // Add line change counts
     const filesWithChanges = plan.files.map(file => ({
       ...file,
       ...countChanges(file.content),
     }));
+
+    // Create integration_plan.md
+    const integrationPlanMd = `# ${plan.title}\n\n${plan.description}`;
+    filesWithChanges.push({
+      path: 'integration_plan.md',
+      content: integrationPlanMd,
+      additions: integrationPlanMd.split('\n').length,
+      deletions: 0
+    });
 
     return {
       title: plan.title,

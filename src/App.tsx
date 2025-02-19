@@ -16,6 +16,8 @@ interface FileChange {
   additions: number;
   deletions: number;
   content: string;
+  originalPath?: string;
+  changes?: string[];
 }
 
 interface Repository {
@@ -31,6 +33,7 @@ interface TreeNode {
   type: 'file' | 'directory';
   children?: TreeNode[];
   isTarget?: boolean;
+  isOriginal?: boolean;
 }
 
 interface LLMRequest {
@@ -50,9 +53,16 @@ interface LLMRequest {
 
 function buildTreeFromPaths(
   items: Array<{ path: string; type: 'file' | 'directory' }>,
-  targetPaths: string[] = []
+  files: FileChange[],
 ): TreeNode[] {
   const root: { [key: string]: TreeNode } = {};
+  const targetPaths = files.map(f => {
+    const parts = f.path.split('/');
+    return parts.slice(0, -1).join('/');
+  });
+  const originalPaths = files
+    .filter(f => f.originalPath)
+    .map(f => f.originalPath as string);
 
   items.forEach(item => {
     const parts = item.path.split('/');
@@ -65,7 +75,8 @@ function buildTreeFromPaths(
           path: parts.slice(0, index + 1).join('/'),
           type: index === parts.length - 1 ? item.type : 'directory',
           children: {},
-          isTarget: targetPaths.includes(parts.slice(0, index + 1).join('/'))
+          isTarget: targetPaths.includes(parts.slice(0, index + 1).join('/')),
+          isOriginal: originalPaths.includes(parts.slice(0, index + 1).join('/'))
         };
       }
       if (index < parts.length - 1) {
@@ -93,13 +104,20 @@ function DirectoryTree({
   level?: number;
   defaultExpanded?: boolean;
 }) {
-  const [isExpanded, setIsExpanded] = useState(defaultExpanded || node.isTarget);
+  const [isExpanded, setIsExpanded] = useState(defaultExpanded || node.isTarget || node.isOriginal);
   const paddingLeft = `${level * 1.5}rem`;
+
+  const getBgColor = () => {
+    if (node.isTarget && node.isOriginal) return 'bg-purple-500/20';
+    if (node.isTarget) return 'bg-blue-500/20';
+    if (node.isOriginal) return 'bg-amber-500/20';
+    return '';
+  };
 
   if (node.type === 'file') {
     return (
       <div 
-        className={`flex items-center py-1 hover:bg-gray-700/30 rounded px-2 ${node.isTarget ? 'bg-blue-500/20' : ''}`}
+        className={`flex items-center py-1 hover:bg-gray-700/30 rounded px-2 ${getBgColor()}`}
         style={{ paddingLeft }}
       >
         <File className="h-4 w-4 text-gray-400 mr-2" />
@@ -111,9 +129,7 @@ function DirectoryTree({
   return (
     <div>
       <button
-        className={`flex items-center py-1 hover:bg-gray-700/30 rounded px-2 w-full text-left ${
-          node.isTarget ? 'bg-blue-500/20' : ''
-        }`}
+        className={`flex items-center py-1 hover:bg-gray-700/30 rounded px-2 w-full text-left ${getBgColor()}`}
         style={{ paddingLeft }}
         onClick={() => setIsExpanded(!isExpanded)}
       >
@@ -156,7 +172,14 @@ function FileChangePreview({ file }: { file: FileChange }) {
       >
         <div className="flex items-center space-x-3">
           <FileCode className="h-4 w-4 text-gray-400" />
-          <span className="text-sm font-medium">{file.path}</span>
+          <div className="text-left">
+            <span className="text-sm font-medium">{file.path}</span>
+            {file.originalPath && (
+              <div className="text-xs text-amber-400">
+                Original: {file.originalPath}
+              </div>
+            )}
+          </div>
         </div>
         <div className="flex items-center space-x-4">
           <span className="text-sm text-green-400 flex items-center">
@@ -175,10 +198,22 @@ function FileChangePreview({ file }: { file: FileChange }) {
         </div>
       </button>
       {isExpanded && (
-        <div className="bg-gray-900 p-4 overflow-x-auto">
-          <pre className="text-sm font-mono">
-            <code>{file.content}</code>
-          </pre>
+        <div className="bg-gray-900 p-4">
+          {file.changes && file.changes.length > 0 && (
+            <div className="mb-4 text-sm text-gray-300">
+              <h4 className="font-medium mb-2">Required Changes:</h4>
+              <ul className="list-disc list-inside space-y-1">
+                {file.changes.map((change, index) => (
+                  <li key={index}>{change}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+          <div className="overflow-x-auto">
+            <pre className="text-sm font-mono">
+              <code>{file.content}</code>
+            </pre>
+          </div>
         </div>
       )}
     </div>
@@ -215,14 +250,9 @@ function App() {
 
   useEffect(() => {
     if (integrationPlan && llmRequest) {
-      const targetPaths = integrationPlan.files.map(file => {
-        const parts = file.path.split('/');
-        return parts.slice(0, -1).join('/');
-      });
-
       const tree = buildTreeFromPaths(
         llmRequest.targetRepo.structure,
-        targetPaths
+        integrationPlan.files
       );
       setRepoTree(tree);
     }
@@ -633,14 +663,24 @@ function App() {
                         <DirectoryTree 
                           key={node.path} 
                           node={node}
-                          defaultExpanded={node.isTarget}
+                          defaultExpanded={node.isTarget || node.isOriginal}
                         />
                       ))}
                     </div>
-                    <p className="mt-4 text-sm text-gray-400">
-                      <span className="inline-block w-3 h-3 bg-blue-500/20 rounded-sm mr-2" />
-                      Highlighted directories indicate where new files will be placed
-                    </p>
+                    <div className="mt-4 space-y-2 text-sm text-gray-400">
+                      <div className="flex items-center">
+                        <span className="inline-block w-3 h-3 bg-blue-500/20 rounded-sm mr-2" />
+                        Target location for new files
+                      </div>
+                      <div className="flex items-center">
+                        <span className="inline-block w-3 h-3 bg-amber-500/20 rounded-sm mr-2" />
+                        Original prototype files
+                      </div>
+                      <div className="flex items-center">
+                        <span className="inline-block w-3 h-3 bg-purple-500/20 rounded-sm mr-2" />
+                        Files requiring modification
+                      </div>
+                    </div>
                   </div>
 
                   <div className="border-t border-gray-700 pt-6">
