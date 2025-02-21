@@ -17,7 +17,11 @@
     "openai": "^4.28.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
-    "react-dropzone": "^14.2.3"
+    "react-dropzone": "^14.2.3",
+    "ai": "^4.1.17",
+    "@ai-sdk/openai": "^1.1.9",
+    "zod": "^3.24.1",
+    "js-tiktoken": "^1.0.17"
   },
   "devDependencies": {
     "@eslint/js": "^9.9.1",
