@@ -509,9 +509,6 @@ function App() {
 
   const handleCreatePR = async () => {
     const authToken = import.meta.env.VITE_GITHUB_TOKEN || token;
-    console.log('pullRequestPlan', pullRequestPlan);
-    console.log('selectedRepo', selectedRepo);
-    console.log('authToken', authToken);
     if (!pullRequestPlan || !selectedRepo || !authToken) return;
 
     setIsPRCreating(true);
@@ -821,6 +818,34 @@ function App() {
                   </div>
                 </div>
 
+                <div>
+                  <h2 className='text-xl font-semibold mb-2'>
+                    Integration Plan
+                  </h2>
+                  <div className='space-y-4'>
+                    <div>
+                      <h3 className='text-lg font-medium mb-1'>
+                        Target Directory
+                      </h3>
+                      <p className='text-gray-400'>
+                        {pullRequestPlan?.targetDirectory}
+                      </p>
+                    </div>
+                    <div>
+                      <h3 className='text-lg font-medium mb-1'>
+                        Integration Steps
+                      </h3>
+                      <ol className='list-decimal list-inside space-y-1.5 text-gray-400 text-sm pl-4'>
+                        {pullRequestPlan?.integrationSteps.map(
+                          (step, index) => (
+                            <li key={index} className='leading-relaxed'>{step}</li>
+                          )
+                        )}
+                      </ol>
+                    </div>
+                  </div>
+                </div>
+
                 <div className='grid grid-cols-1 lg:grid-cols-2 gap-6'>
                   <div className='border-t border-gray-700 pt-6'>
                     <h3 className='text-lg font-semibold mb-4'>
@@ -913,34 +938,6 @@ function App() {
                     </p>
                   </div>
                 )}
-
-                <div>
-                  <h2 className='text-xl font-semibold mb-2'>
-                    Integration Plan
-                  </h2>
-                  <div className='space-y-4'>
-                    <div>
-                      <h3 className='text-lg font-medium mb-1'>
-                        Target Directory
-                      </h3>
-                      <p className='text-gray-400'>
-                        {pullRequestPlan?.targetDirectory}
-                      </p>
-                    </div>
-                    <div>
-                      <h3 className='text-lg font-medium mb-1'>
-                        Integration Steps
-                      </h3>
-                      <ol className='list-decimal list-inside space-y-2 text-gray-400'>
-                        {pullRequestPlan?.integrationSteps.map(
-                          (step, index) => (
-                            <li key={index}>{step}</li>
-                          )
-                        )}
-                      </ol>
-                    </div>
-                  </div>
-                </div>
               </div>
             </div>
           )}

@@ -7,7 +7,6 @@ import { systemPrompt } from './prompt';
 (window as any).Buffer = Buffer;
 
 const MODEL = o3MiniModel;
-console.log('MODEL', MODEL);
 
 const DirectoryAnalysisSchema = z.object({
   nextjsRoot: z.string(),

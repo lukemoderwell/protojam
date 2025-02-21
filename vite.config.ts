@@ -18,10 +18,13 @@ export default defineConfig({
             console.log('proxy error', err);
           });
           proxy.on('proxyReq', (proxyReq, req, _res) => {
-            proxyReq.setHeader('Authorization', req.headers.authorization || '');
+            proxyReq.setHeader(
+              'Authorization',
+              req.headers.authorization || ''
+            );
           });
-        }
-      }
-    }
-  }
+        },
+      },
+    },
+  },
 });
